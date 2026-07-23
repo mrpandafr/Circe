@@ -46,6 +46,35 @@ trouvé — pas par perfection, mais parce qu'on ne peut inspecter que
 sa sortie, jamais son raisonnement. On l'utilise faute de mieux, pas
 comme idéal.
 
+## Pourquoi et comment utiliser BGE-M3
+
+**Pourquoi** : le graphe seul (`links`) ne trouve que ce qui est
+explicitement écrit — une vraie citation, un vrai renvoi. Il rate
+tout ce qui se ressemble sans jamais se citer (deux articles de loi
+sur le même sujet, deux phrases sur la même idée, sans jamais se
+référencer l'un l'autre par leur numéro ou leur nom).
+
+**Comment**, deux usages distincts :
+
+Chercher après coup, sans toucher au graphe :
+```bash
+python3 circe_explorer.py corpus.vjson vecteurs.npy
+circe> /near "un texte exact déjà présent dans le graphe"
+```
+
+Tisser automatiquement pendant la construction, avec une source
+honnêtement étiquetée comme venant du modèle, jamais confondue avec
+une citation humaine :
+```bash
+python3 tissage_semantique.py
+```
+(à adapter : charge tes propres textes, ajuste le seuil de
+similarité selon ce que tu juges pertinent).
+
+`pip install sentence-transformers --break-system-packages` est
+requis pour les deux — absent, ces commandes échouent avec un
+message clair plutôt qu'un plantage silencieux.
+
 ## Ce que ça enlève
 
 Un juriste qui ne feuillette plus. Un citoyen qui retrouve la loi
