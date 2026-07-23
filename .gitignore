@@ -1,0 +1,3 @@
+*.vjson
+__pycache__/
+*.pyc
