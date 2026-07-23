@@ -27,6 +27,38 @@ def charger_angle_semantique(chemin_vecteurs, noms_ordre):
         return None, None
 
 
+def reconstruire_phrase(reg, mot_nom, position_str):
+    """Depuis un mot et sa position exacte, reconstruit la phrase
+    entière -- en avant et en arrière -- depuis le graphe seul.
+    Rien de dupliqué en stockage. Une aide de contexte, pas la
+    fonction centrale de l'outil : Circé compare des structures,
+    elle ne remplace pas la lecture."""
+    suivant, precedent = {}, {}
+    for v in reg.values():
+        for T, src, cible in v.links:
+            if not T.name.isdigit():
+                continue
+            suivant[(v.name, T.name)] = cible.name
+            precedent[(cible.name, T.name)] = v.name
+
+    p = int(position_str)
+    resultat = [mot_nom]
+    mot_courant, p_courant = mot_nom, p
+    while (mot_courant, str(p_courant + 1)) in suivant:
+        mot_courant = suivant[(mot_courant, str(p_courant + 1))]
+        p_courant += 1
+        resultat.append(mot_courant)
+
+    mot_courant, p_courant = mot_nom, p
+    avant = []
+    while (mot_courant, str(p_courant)) in precedent:
+        mot_courant = precedent[(mot_courant, str(p_courant))]
+        p_courant -= 1
+        avant.insert(0, mot_courant)
+
+    return " ".join(avant + resultat)
+
+
 def repl(reg, vecteurs=None, np=None, noms_ordre=None):
     print(f"Circé explore -- {len(reg)} citoyens dans le graphe.")
     angle_actif = "activé" if vecteurs is not None else "non activé (optionnel)"
@@ -79,6 +111,19 @@ def repl(reg, vecteurs=None, np=None, noms_ordre=None):
         elif cmd == "/near":
             print("  /near indisponible -- angle sémantique non chargé "
                   "(fournis un fichier vecteurs.npy en second argument).")
+        elif cmd == "/contexte":
+            args = arg.split(maxsplit=1)
+            if len(args) != 2:
+                print("  Usage : /contexte MOT POSITION (voir /voisins pour la position)")
+                continue
+            mot_nom, position_str = args
+            if mot_nom not in reg or not position_str.isdigit():
+                print(f"  Mot ou position invalide.")
+                continue
+            print(f"  {reconstruire_phrase(reg, mot_nom, position_str)}")
+        else:
+            print("  Commande inconnue. Essaie /texte, /voisins, /contexte, /near, /quit")
+
 def main():
     if len(sys.argv) < 2:
         print("Usage : python3 circe_explorer.py corpus.vjson [vecteurs.npy]")

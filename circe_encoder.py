@@ -25,8 +25,19 @@ from vector_json import registre_vers_json
 
 
 def decouper_mots(texte: str) -> list[str]:
-    """Mots et ponctuation forte comme citoyens séparés -- rien perdu."""
-    return re.findall(r"[\wàâäéèêëïîôöùûüçÀÂÄÉÈÊËÏÎÔÖÙÛÜÇ\-']+|[.!?;:]", texte)
+    """CHAQUE glyphe d'une phrase, sans exception -- y compris
+    l'espace lui-même. Garantie : "".join(decouper_mots(phrase)) ==
+    phrase, toujours, pour une phrase donnée.
+
+    La phrase est l'unité réelle du document -- pas le flux continu
+    brut. L'espacement ENTRE deux phrases (la colle de mise en forme)
+    n'est pas garanti identique ; le contenu de CHAQUE phrase, lui,
+    est préservé au caractère près."""
+    return re.findall(
+        r"[\wàâäéèêëïîôöùûüçÀÂÄÉÈÊËÏÎÔÖÙÛÜÇ\-']+|[.!?;:]|.",
+        texte,
+        re.DOTALL
+    )
 
 
 def encoder_fichier(chemin: str, source: str = "lecture") -> dict:

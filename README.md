@@ -7,8 +7,10 @@
 Un livre fermé garde son sens en otage. Il faut le lire en entier,
 deviner le bon mot pour le retrouver.
 
-Circé garde le texte intact et le rend interrogeable. Pas résumé.
-Traversé.
+Circé garde chaque glyphe d'une phrase, dans l'ordre exact — y
+compris l'espace lui-même. La phrase est l'unité réelle du document ;
+son contenu ne perd rien. Seul l'espacement entre deux phrases (la
+mise en forme, pas le sens) n'est pas garanti identique.
 
 ## Redécouvrir
 
