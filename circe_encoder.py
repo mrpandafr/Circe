@@ -54,7 +54,9 @@ def encoder_fichier(chemin: str, source: str = "lecture") -> dict:
         prec = None
         for mot in mots:
             m = V(mot)
-            T = V(f"position_{position}")
+            T = V(str(position))  # le nombre nu -- évident, et le suivant
+                                   # se trouve directement par +1, sans
+                                   # avoir à parser une étiquette d'abord
 
             if premier_mot is None:
                 m.links.append((doc, src, m))
