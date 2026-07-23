@@ -55,8 +55,9 @@ comme idéal.
 **Pourquoi** : le graphe seul trouve déjà plus qu'il n'y paraît — deux
 textes qui partagent un même mot sont réellement reliés, visible via
 `seen` sur ce mot, sans aucune citation explicite entre eux. Vérifié :
-"Alice" dans deux paragraphes distincts, jamais cités l'un l'autre,
-mais bien connectés par le mot partagé.
+"Alice" dans deux phrases distinctes, jamais citées l'une l'autre,
+mais bien connectées par le mot partagé. (Circé ne détecte plus les
+frontières de paragraphe — seule la phrase est une unité reconnue.)
 
 Ce qu'il rate, précisément : la ressemblance **sans mot commun** — un
 synonyme, une paraphrase, deux phrases sur la même idée dites

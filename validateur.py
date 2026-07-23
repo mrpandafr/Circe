@@ -45,27 +45,34 @@ def valider(texte_json: str) -> list[str]:
         else:
             noms_connus.add(item["name"])
 
-        if "links" in item:
-            if not isinstance(item["links"], list):
-                erreurs.append(f"Élément {i} : 'links' doit être une liste.")
-            else:
-                for j, lien in enumerate(item["links"]):
-                    for champ in ("temps", "cible"):
-                        if champ not in lien:
-                            erreurs.append(
-                                f"Élément {i}, lien {j} : champ '{champ}' manquant.")
-                        elif not isinstance(lien[champ], str):
-                            erreurs.append(
-                                f"Élément {i}, lien {j} : '{champ}' doit être une chaîne.")
-                    if "source" not in lien and source_defaut is None:
-                        erreurs.append(
-                            f"Élément {i}, lien {j} : 'source' manquant et "
-                            f"aucune 'source_defaut' au niveau du fichier.")
+        # links et seen sont OBLIGATOIRES -- format strict, cohérent
+        # avec json_vers_registre qui les exige sans valeur par défaut.
+        if "links" not in item:
+            erreurs.append(f"Élément {i} : champ 'links' manquant (obligatoire).")
+        elif not isinstance(item["links"], list):
+            erreurs.append(f"Élément {i} : 'links' doit être une liste.")
 
-        if "seen" in item:
-            if not isinstance(item["seen"], list):
-                erreurs.append(f"Élément {i} : 'seen' doit être une liste.")
-            elif not all(isinstance(t, str) for t in item["seen"]):
+        if "seen" not in item:
+            erreurs.append(f"Élément {i} : champ 'seen' manquant (obligatoire).")
+        elif not isinstance(item["seen"], list):
+            erreurs.append(f"Élément {i} : 'seen' doit être une liste.")
+
+        if "links" in item and isinstance(item["links"], list):
+            for j, lien in enumerate(item["links"]):
+                for champ in ("temps", "cible"):
+                    if champ not in lien:
+                        erreurs.append(
+                            f"Élément {i}, lien {j} : champ '{champ}' manquant.")
+                    elif not isinstance(lien[champ], str):
+                        erreurs.append(
+                            f"Élément {i}, lien {j} : '{champ}' doit être une chaîne.")
+                if "source" not in lien and source_defaut is None:
+                    erreurs.append(
+                        f"Élément {i}, lien {j} : 'source' manquant et "
+                        f"aucune 'source_defaut' au niveau du fichier.")
+
+        if "seen" in item and isinstance(item["seen"], list):
+            if not all(isinstance(t, str) for t in item["seen"]):
                 erreurs.append(f"Élément {i} : 'seen' doit contenir uniquement des chaînes.")
 
     # Vérification de cohérence : chaque cible référencée existe-t-elle

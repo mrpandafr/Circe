@@ -4,6 +4,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 if [ -z "${1:-}" ]; then
     echo "Usage : ./circe.sh fichier.txt"
     exit 1
@@ -18,13 +20,13 @@ if [ ! -f "$FICHIER_TXT" ]; then
 fi
 
 echo "═══ 1. Tissage ═══"
-python3 circe_encoder.py "$FICHIER_TXT"
+python3 "$SCRIPT_DIR/circe_encoder.py" "$FICHIER_TXT"
 
 echo ""
 echo "═══ 2. Validation ═══"
-python3 validateur.py "$FICHIER_VJSON"
+python3 "$SCRIPT_DIR/validateur.py" "$FICHIER_VJSON"
 
 echo ""
 echo "═══ 3. Exploration ═══"
 echo "(tape /quit pour sortir)"
-python3 circe_explorer.py "$FICHIER_VJSON"
+python3 "$SCRIPT_DIR/circe_explorer.py" "$FICHIER_VJSON"

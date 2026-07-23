@@ -28,15 +28,17 @@ def charger_angle_semantique(chemin_vecteurs, noms_ordre):
 
 
 def reconstruire_phrase(reg, mot_nom, position_str):
-    """Depuis un mot et sa position exacte, reconstruit la phrase
-    entière -- en avant et en arrière -- depuis le graphe seul.
-    Rien de dupliqué en stockage. Une aide de contexte, pas la
-    fonction centrale de l'outil : Circé compare des structures,
-    elle ne remplace pas la lecture."""
+    """Depuis un mot et sa position exacte (un chiffre nu, ex: "2"),
+    reconstruit la phrase entière -- en avant et en arrière -- depuis
+    le graphe seul. En interne, les positions sont préfixées "@" pour
+    éviter toute collision avec un mot qui serait un chiffre littéral ;
+    l'utilisateur, lui, tape juste le chiffre."""
+    position_interne = f"@{position_str}"  # @N en interne, N côté utilisateur
+
     suivant, precedent = {}, {}
     for v in reg.values():
         for T, src, cible in v.links:
-            if not T.name.isdigit():
+            if not (T.name.startswith("@") and T.name[1:].isdigit()):
                 continue
             suivant[(v.name, T.name)] = cible.name
             precedent[(cible.name, T.name)] = v.name
@@ -44,26 +46,32 @@ def reconstruire_phrase(reg, mot_nom, position_str):
     p = int(position_str)
     resultat = [mot_nom]
     mot_courant, p_courant = mot_nom, p
-    while (mot_courant, str(p_courant + 1)) in suivant:
-        mot_courant = suivant[(mot_courant, str(p_courant + 1))]
+    while (mot_courant, f"@{p_courant + 1}") in suivant:
+        mot_courant = suivant[(mot_courant, f"@{p_courant + 1}")]
         p_courant += 1
         resultat.append(mot_courant)
 
     mot_courant, p_courant = mot_nom, p
     avant = []
-    while (mot_courant, str(p_courant)) in precedent:
-        mot_courant = precedent[(mot_courant, str(p_courant))]
+    while (mot_courant, f"@{p_courant}") in precedent:
+        mot_courant = precedent[(mot_courant, f"@{p_courant}")]
         p_courant -= 1
         avant.insert(0, mot_courant)
 
-    return " ".join(avant + resultat)
+    if position_interne not in {T.name for T in reg[mot_nom].seen}:
+        return None  # la position demandée ne correspond pas à ce mot
+
+    return "".join(avant + resultat)  # PAS " ".join() -- les espaces
+                                        # sont déjà des tokens à part
+                                        # entière ; en rajouter romprait
+                                        # la fidélité exacte au texte.
 
 
 def repl(reg, vecteurs=None, np=None, noms_ordre=None):
     print(f"Circé explore -- {len(reg)} citoyens dans le graphe.")
     angle_actif = "activé" if vecteurs is not None else "non activé (optionnel)"
     print(f"Angle sémantique : {angle_actif}")
-    print("Commandes : /texte MOT_CLE  /voisins MOT_CLE"
+    print("Commandes : /texte MOT_CLE  /voisins MOT_CLE  /contexte MOT POSITION"
           f"{'  /near TEXTE_EXACT' if vecteurs is not None else ''}  /quit\n")
     while True:
         try:
@@ -90,7 +98,10 @@ def repl(reg, vecteurs=None, np=None, noms_ordre=None):
             print(f"  links ({len(v.links)}) :")
             for T, src, cible in v.links:
                 print(f"    [{T.name}] {src.name} -> {cible.name[:80]}")
-            print(f"  seen ({len(v.seen)} fois cité)")
+            n_occurrences = sum(1 for T in v.seen
+                                 if T.name.startswith("@") and T.name[1:].isdigit())
+            print(f"  seen ({n_occurrences} fois cité, occurrences réelles ; "
+                  f"{len(v.seen)} entrées totales dont genèse/document)")
         elif cmd == "/near" and vecteurs is not None:
             if arg not in noms_ordre:
                 print(f"  '{arg[:60]}...' introuvable dans les vecteurs.")
@@ -120,7 +131,13 @@ def repl(reg, vecteurs=None, np=None, noms_ordre=None):
             if mot_nom not in reg or not position_str.isdigit():
                 print(f"  Mot ou position invalide.")
                 continue
-            print(f"  {reconstruire_phrase(reg, mot_nom, position_str)}")
+            resultat = reconstruire_phrase(reg, mot_nom, position_str)
+            if resultat is None:
+                print(f"  Le citoyen '{mot_nom}' n'est pas attesté à la "
+                      f"position {position_str} (voir /voisins pour les "
+                      f"positions réelles).")
+            else:
+                print(f"  {resultat}")
         else:
             print("  Commande inconnue. Essaie /texte, /voisins, /contexte, /near, /quit")
 
