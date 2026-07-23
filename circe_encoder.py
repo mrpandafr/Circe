@@ -3,17 +3,22 @@
 circe_encoder.py -- LE point d'entrée unique. Transforme un texte
 brut (n'importe quel .txt) en graphe VectorJSON.
 
-Tissage RÉEL, mot par mot, comme exemple.py (le vrai vector.py) :
-chaque mot est un citoyen, une phrase est une chaîne de liens
-(temps, source, cible). Les mots répétés se déduplique naturellement
-par identité de contenu -- pas un accident, la propriété centrale
-de Vector.
+Tissage réel, mot par mot, comme exemple.py. Le TEMPS ici est la
+POSITION du glyphe (mot) dans le texte -- simple, linéaire, assumé
+tel quel. Pour une conversation (Kage), le temps est "quand" en
+heures réelles. Pour un texte statique, le temps est "où" dans la
+séquence -- le seul analogue honnête, pas une hiérarchie artificielle
+de page/paragraphe.
+
+Genèse (comme exemple.py) : le tout premier mot du livre s'auto-lie
+au nom du document -- simple, reconnaissable, une seule fois.
 
 Usage :
     python3 circe_encoder.py corpus.txt
     -> écrit corpus.vjson
 """
 import sys
+import os
 import re
 from vector import Vector
 from vector_json import registre_vers_json
@@ -25,17 +30,12 @@ def decouper_mots(texte: str) -> list[str]:
 
 
 def encoder_fichier(chemin: str, source: str = "lecture") -> dict:
-    """Lit un .txt, tisse mot par mot, DANS des phrases, groupées par
-    PARAGRAPHE. Le temps est le paragraphe -- pas une position plate
-    par phrase (jamais réutilisée, un citoyen sans vraie raison
-    d'être), mais une vraie unité partagée par tous les mots qui s'y
-    trouvent, exactement comme une date chez Kage est réutilisée par
-    tout ce qui s'y passe."""
+    """Lit un .txt, le tisse mot par mot. Le temps = la position du
+    mot dans le texte entier, un compteur qui avance, simplement."""
     with open(chemin, encoding="utf-8") as f:
         texte_brut = f.read()
 
-    paragraphes = [p.strip() for p in re.split(r"\n\s*\n", texte_brut) if p.strip()]
-    print(f"{len(paragraphes)} paragraphes trouvés.")
+    phrases = [p.strip() for p in re.split(r"(?<=[.!?])\s+", texte_brut) if p.strip()]
 
     reg = {}
     def V(name):
@@ -43,19 +43,30 @@ def encoder_fichier(chemin: str, source: str = "lecture") -> dict:
             reg[name] = Vector(name)
         return reg[name]
 
-    for num_para, paragraphe in enumerate(paragraphes):
-        T_paragraphe = V(f"paragraphe_{num_para}")  # réutilisé par tous les mots du paragraphe
-        src = V(source)
-        phrases = [p for p in re.split(r"(?<=[.!?])\s+", paragraphe) if p.strip()]
-        for phrase in phrases:
-            mots = decouper_mots(phrase)
-            prec = None
-            for mot in mots:
-                m = V(mot)
-                if prec is not None:
-                    prec.links.append((T_paragraphe, src, m))
-                    m.seen.append(T_paragraphe)
-                prec = m
+    nom_document = os.path.basename(chemin).rsplit(".", 1)[0]
+    doc = V(nom_document)
+    src = V(source)
+    premier_mot = None
+    position = 0
+
+    for phrase in phrases:
+        mots = decouper_mots(phrase)
+        prec = None
+        for mot in mots:
+            m = V(mot)
+            T = V(f"position_{position}")
+
+            if premier_mot is None:
+                m.links.append((doc, src, m))
+                m.seen.append(doc)
+                premier_mot = m
+
+            m.seen.append(T)  # toujours -- chaque mot vu à sa position exacte
+            if prec is not None:
+                prec.links.append((T, src, m))
+            prec = m
+            position += 1
+
     return reg
 
 
@@ -67,9 +78,8 @@ def main():
     chemin = sys.argv[1]
     print(f"Lecture et tissage de {chemin}...")
     reg = encoder_fichier(chemin)
-    print(f"{len(reg)} citoyens (mots uniques + repères de paragraphe) -- "
-          f"la répétition du langage dédoublonne d'elle-même, et chaque "
-          f"paragraphe-temps est réutilisé par tous les mots qui s'y trouvent.")
+    print(f"{len(reg)} citoyens (mots uniques + positions + document) -- "
+          f"chaque mot compte sa position exacte, sans hiérarchie artificielle.")
 
     sortie = chemin.rsplit(".", 1)[0] + ".vjson"
     with open(sortie, "w", encoding="utf-8") as f:

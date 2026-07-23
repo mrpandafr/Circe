@@ -21,10 +21,12 @@ dans un texte qu'on croyait déjà connaître.
 ## Une science ouverte
 
 L'étude lexicale demandait des laboratoires. Elle tient aujourd'hui
-dans deux fichiers de moins de cent lignes.
+dans six fichiers Python, moins de 500 lignes au total, bibliothèque
+standard.
 
 Vérifié sur du texte, sur de la musique, sur un corpus légal de
-près de trois mille articles. Le même mécanisme, chaque fois.
+près de trois mille articles, sur un livre entier. Le même
+mécanisme, chaque fois.
 
 ## VectorJSON, la preuve
 
@@ -48,11 +50,15 @@ comme idéal.
 
 ## Pourquoi et comment utiliser BGE-M3
 
-**Pourquoi** : le graphe seul (`links`) ne trouve que ce qui est
-explicitement écrit — une vraie citation, un vrai renvoi. Il rate
-tout ce qui se ressemble sans jamais se citer (deux articles de loi
-sur le même sujet, deux phrases sur la même idée, sans jamais se
-référencer l'un l'autre par leur numéro ou leur nom).
+**Pourquoi** : le graphe seul trouve déjà plus qu'il n'y paraît — deux
+textes qui partagent un même mot sont réellement reliés, visible via
+`seen` sur ce mot, sans aucune citation explicite entre eux. Vérifié :
+"Alice" dans deux paragraphes distincts, jamais cités l'un l'autre,
+mais bien connectés par le mot partagé.
+
+Ce qu'il rate, précisément : la ressemblance **sans mot commun** — un
+synonyme, une paraphrase, deux phrases sur la même idée dites
+autrement. Là, BGE-M3 apporte un angle que le graphe seul n'a pas.
 
 **Comment**, deux usages distincts :
 
@@ -86,8 +92,8 @@ souvenir où chercher.
 ## Comment
 
 ```
-python3 circe_encoder.py            # texte -> graphe VectorJSON
-python3 validateur.py fichier.vjson # vérifie le format
+python3 circe_encoder.py fichier.txt   # texte -> graphe VectorJSON
+python3 validateur.py fichier.vjson    # vérifie le format
 python3 circe_explorer.py fichier.vjson  # traverse, interroge
 ```
 

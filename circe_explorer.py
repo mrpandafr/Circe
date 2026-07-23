@@ -27,35 +27,6 @@ def charger_angle_semantique(chemin_vecteurs, noms_ordre):
         return None, None
 
 
-def reconstituer_temps(reg, nom_temps):
-    """Retrouve tous les liens portant ce temps précis (un paragraphe),
-    les rechaîne dans l'ordre. Un paragraphe contient PLUSIEURS phrases
-    -- donc plusieurs chaînes distinctes partageant le même temps, pas
-    une seule. Chacune est suivie séparément, jamais mélangée."""
-    liens_du_temps = []
-    for v in reg.values():
-        for T, src, cible in v.links:
-            if T.name == nom_temps:
-                liens_du_temps.append((v.name, cible.name))
-    if not liens_du_temps:
-        return None
-
-    suivant = dict(liens_du_temps)
-    sources = {a for a, b in liens_du_temps}
-    cibles = {b for a, b in liens_du_temps}
-    debuts = list(sources - cibles)  # un début par phrase, pas un seul
-
-    phrases_reconstruites = []
-    for debut in debuts:
-        mot = debut
-        resultat = [mot]
-        while mot in suivant:
-            mot = suivant[mot]
-            resultat.append(mot)
-        phrases_reconstruites.append(" ".join(resultat))
-    return " / ".join(phrases_reconstruites)
-
-
 def repl(reg, vecteurs=None, np=None, noms_ordre=None):
     print(f"Circé explore -- {len(reg)} citoyens dans le graphe.")
     angle_actif = "activé" if vecteurs is not None else "non activé (optionnel)"
@@ -108,16 +79,6 @@ def repl(reg, vecteurs=None, np=None, noms_ordre=None):
         elif cmd == "/near":
             print("  /near indisponible -- angle sémantique non chargé "
                   "(fournis un fichier vecteurs.npy en second argument).")
-        elif cmd == "/paragraphe":
-            reconstitue = reconstituer_temps(reg, arg)
-            if reconstitue:
-                print(f"  {reconstitue}")
-            else:
-                print(f"  Aucun lien trouvé pour '{arg}' -- vérifie le nom exact "
-                      f"(ex: paragraphe_142), visible via /voisins.")
-        else:
-            print("  Commande inconnue.")
-
 def main():
     if len(sys.argv) < 2:
         print("Usage : python3 circe_explorer.py corpus.vjson [vecteurs.npy]")
