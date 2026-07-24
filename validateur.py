@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
-validateur.py -- vérifie qu'un fichier .vjson respecte le format
-VectorJSON v1.0. Aucune dépendance hors la bibliothèque standard.
+validateur.py -- vérifie qu'un fichier respecte NoeudJSON.
+
+Accepte le format courant (clé "noeuds", liens en tableaux, cible en
+tête, longueur 1 à n) et les anciens VectorJSON (clé "citoyens",
+champ "seen", cible en dernier ou liens en objets).
+
+Aucune dépendance hors la bibliothèque standard.
 
 Usage :
     python3 validateur.py fichier.vjson
@@ -10,82 +15,72 @@ import sys
 import json
 
 
-def valider(texte_json: str) -> list[str]:
-    """Retourne (erreurs, avertissements). Accepte le format brut
-    (liste nue, pré-v1.1) ET le format enveloppé v1.0/v1.1 avec
-    'source_defaut' optionnelle."""
-    erreurs = []
+def valider(texte_json: str):
+    """Retourne (erreurs, avertissements). Erreurs vides = valide."""
+    erreurs, avertissements = [], []
     try:
         data = json.loads(texte_json)
     except json.JSONDecodeError as e:
         return [f"JSON invalide : {e}"], []
 
     if isinstance(data, list):
-        liste, source_defaut = data, None
-    elif isinstance(data, dict) and "citoyens" in data:
-        liste = data["citoyens"]
-        source_defaut = data.get("source_defaut")
+        liste = data
+    elif isinstance(data, dict) and ("noeuds" in data or "citoyens" in data):
+        liste = data.get("noeuds") or data["citoyens"]
         if not isinstance(liste, list):
-            return ["Le champ 'citoyens' doit être une liste."], []
+            return ["Le champ 'noeuds' doit être une liste."], []
     else:
         return ["Le fichier doit être une liste, ou un objet avec un "
-                "champ 'citoyens'."], []
+                "champ 'noeuds'."], []
 
-    data = liste  # la suite de la validation travaille sur la liste
-
-    noms_connus = set()
-    for i, item in enumerate(data):
+    noms = set()
+    for i, item in enumerate(liste):
         if not isinstance(item, dict):
-            erreurs.append(f"Élément {i} : doit être un objet, pas {type(item).__name__}.")
+            erreurs.append(f"Élément {i} : doit être un objet.")
             continue
+
         if "name" not in item:
             erreurs.append(f"Élément {i} : champ 'name' manquant (obligatoire).")
         elif not isinstance(item["name"], str) or not item["name"]:
             erreurs.append(f"Élément {i} : 'name' doit être une chaîne non vide.")
         else:
-            noms_connus.add(item["name"])
+            noms.add(item["name"])
 
-        # links et seen sont OBLIGATOIRES -- format strict, cohérent
-        # avec json_vers_registre qui les exige sans valeur par défaut.
         if "links" not in item:
             erreurs.append(f"Élément {i} : champ 'links' manquant (obligatoire).")
         elif not isinstance(item["links"], list):
             erreurs.append(f"Élément {i} : 'links' doit être une liste.")
-
-        if "seen" not in item:
-            erreurs.append(f"Élément {i} : champ 'seen' manquant (obligatoire).")
-        elif not isinstance(item["seen"], list):
-            erreurs.append(f"Élément {i} : 'seen' doit être une liste.")
-
-        if "links" in item and isinstance(item["links"], list):
+        else:
             for j, lien in enumerate(item["links"]):
-                for champ in ("temps", "cible"):
-                    if champ not in lien:
+                if isinstance(lien, list):
+                    if len(lien) < 1:
                         erreurs.append(
-                            f"Élément {i}, lien {j} : champ '{champ}' manquant.")
-                    elif not isinstance(lien[champ], str):
+                            f"Élément {i}, lien {j} : tableau vide -- un lien "
+                            f"porte au moins sa cible.")
+                    elif not all(isinstance(x, str) and x for x in lien):
                         erreurs.append(
-                            f"Élément {i}, lien {j} : '{champ}' doit être une chaîne.")
-                if "source" not in lien and source_defaut is None:
+                            f"Élément {i}, lien {j} : tous les nœuds d'un lien "
+                            f"doivent être des chaînes non vides.")
+                elif isinstance(lien, dict):        # ancien VectorJSON
+                    for champ in ("temps", "cible"):
+                        if champ not in lien:
+                            erreurs.append(
+                                f"Élément {i}, lien {j} : champ '{champ}' manquant.")
+                else:
                     erreurs.append(
-                        f"Élément {i}, lien {j} : 'source' manquant et "
-                        f"aucune 'source_defaut' au niveau du fichier.")
+                        f"Élément {i}, lien {j} : doit être un tableau.")
 
-        if "seen" in item and isinstance(item["seen"], list):
-            if not all(isinstance(t, str) for t in item["seen"]):
-                erreurs.append(f"Élément {i} : 'seen' doit contenir uniquement des chaînes.")
-
-    # Vérification de cohérence : chaque cible référencée existe-t-elle
-    # quelque part dans le fichier ? (avertissement, pas une erreur bloquante --
-    # un lien peut légitimement pointer vers un citoyen d'un autre fichier)
-    avertissements = []
-    for item in data:
-        if isinstance(item, dict) and "links" in item and isinstance(item["links"], list):
-            for lien in item["links"]:
-                if isinstance(lien, dict) and lien.get("cible") not in noms_connus:
-                    avertissements.append(
-                        f"Avertissement : cible '{str(lien.get('cible'))[:50]}...' "
-                        f"non trouvée dans ce fichier (peut-être dans un autre .vjson).")
+    # Cible absente du fichier : avertissement, pas erreur -- un lien
+    # peut légitimement viser un nœud d'un autre fichier.
+    for item in liste:
+        if not isinstance(item, dict) or not isinstance(item.get("links"), list):
+            continue
+        for lien in item["links"]:
+            cible = (lien[0] if isinstance(lien, list) and lien
+                     else lien.get("cible") if isinstance(lien, dict) else None)
+            if cible is not None and cible not in noms:
+                avertissements.append(
+                    f"Cible '{str(cible)[:50]}' absente de ce fichier.")
 
     return erreurs, avertissements
 
@@ -99,23 +94,22 @@ def main():
 
     erreurs, avertissements = valider(texte)
     try:
-        data_brute = json.loads(texte)
+        brut = json.loads(texte)
     except json.JSONDecodeError:
-        data_brute = None
+        brut = None
 
     if erreurs:
         print(f"❌ {len(erreurs)} erreur(s) :")
         for e in erreurs:
             print(f"  - {e}")
         sys.exit(1)
-    else:
-        format_detecte = data_brute.get("format", "VectorJSON (format brut, pré-v1.1)") \
-            if isinstance(data_brute, dict) else "VectorJSON (format brut, pré-v1.1)"
-        print(f"✅ Fichier valide ({format_detecte}).")
-        if avertissements:
-            print(f"\n{len(avertissements)} avertissement(s) (non bloquants) :")
-            for a in avertissements[:5]:
-                print(f"  - {a}")
+
+    fmt = brut.get("format", "format brut") if isinstance(brut, dict) else "format brut"
+    print(f"✅ Fichier valide ({fmt}).")
+    if avertissements:
+        print(f"\n{len(avertissements)} avertissement(s) non bloquants :")
+        for a in avertissements[:5]:
+            print(f"  - {a}")
 
 
 if __name__ == "__main__":

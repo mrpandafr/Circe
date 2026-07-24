@@ -6,7 +6,7 @@ un renvoi explicitement affirmé par un humain ou un texte source.
 
 Le score est gardé dans le nom du temps -- traçable, jamais caché.
 """
-from vector_json import tisser_generique
+from noeud_json import tisser
 
 
 def tisser_par_similarite(reg: dict, textes: list[str], seuil: float = 0.7,
@@ -38,12 +38,8 @@ def tisser_par_similarite(reg: dict, textes: list[str], seuil: float = 0.7,
             if i == j or score < seuil:
                 continue
             temps_trace = f"{modele_nom}_score={score:.4f}"
-            tisser_generique(
-                reg, texte_a,
-                source=f"{modele_nom} (similarité sémantique)",
-                temps=temps_trace,
-                cibles=[textes[j]],
-            )
+            tisser(reg, texte_a, textes[j],
+                   temps_trace, f"{modele_nom} (similarité sémantique)")
             n_liens_crees += 1
     return n_liens_crees
 

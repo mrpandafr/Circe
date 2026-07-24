@@ -1,102 +1,90 @@
 #!/usr/bin/env python3
 """
-circe_encoder.py -- LE point d'entrée unique. Transforme un texte
-brut (n'importe quel .txt) en graphe VectorJSON.
+circe_encoder.py -- transforme un ou plusieurs textes en graphe Nœud.
 
-Tissage réel, mot par mot, comme exemple.py. Le TEMPS ici est la
-POSITION du glyphe (mot) dans le texte -- simple, linéaire, assumé
-tel quel. Pour une conversation (Kage), le temps est "quand" en
-heures réelles. Pour un texte statique, le temps est "où" dans la
-séquence -- le seul analogue honnête, pas une hiérarchie artificielle
-de page/paragraphe.
+Chaque glyphe devient un nœud, la chaîne ne s'interrompt jamais, aucune
+segmentation : la concaténation des nœuds reproduit chaque fichier au
+caractère près.
 
-Genèse (comme exemple.py) : le tout premier mot du livre s'auto-lie
-au nom du document -- simple, reconnaissable, une seule fois.
+Un lien porte [cible, position, document]. Le document remplace l'ancien
+qualificateur "lecture" : celui-ci était constant, donc ne portait aucune
+information. Le document, lui, est partagé par tous les liens qu'il
+contient -- un qualificateur ne mérite d'être un nœud que s'il est
+partagé.
+
+Plusieurs fichiers peuvent être tissés dans le MÊME graphe. Les glyphes
+communs se rejoignent naturellement : c'est ce qui rend les recoupements
+lisibles.
 
 Usage :
     python3 circe_encoder.py corpus.txt
-    -> écrit corpus.vjson
+    python3 circe_encoder.py a.txt b.txt c.txt -o corpus.vjson
 """
 import sys
 import os
 import re
-from vector import Vector
-from vector_json import registre_vers_json
+from noeud import Noeud
+from noeud_json import registre_vers_json
 
 
-def decouper_mots(texte: str) -> list[str]:
-    """CHAQUE glyphe d'une phrase, sans exception -- y compris
-    l'espace lui-même. Garantie : "".join(decouper_mots(phrase)) ==
-    phrase, toujours, pour une phrase donnée.
-
-    La phrase est l'unité réelle du document -- pas le flux continu
-    brut. L'espacement ENTRE deux phrases (la colle de mise en forme)
-    n'est pas garanti identique ; le contenu de CHAQUE phrase, lui,
-    est préservé au caractère près."""
+def decouper(texte: str) -> list[str]:
+    """CHAQUE glyphe, sans exception -- espaces, retours à la ligne,
+    ponctuation. La concaténation reproduit le texte au caractère près."""
     return re.findall(
         r"[\wàâäéèêëïîôöùûüçÀÂÄÉÈÊËÏÎÔÖÙÛÜÇ\-']+|[.!?;:]|.",
         texte,
-        re.DOTALL
+        re.DOTALL,
     )
 
 
-def encoder_fichier(chemin: str, source: str = "lecture") -> dict:
-    """Lit un .txt, le tisse mot par mot. Le temps = la position du
-    mot dans le texte entier, un compteur qui avance, simplement."""
-    with open(chemin, encoding="utf-8") as f:
-        texte_brut = f.read()
+def nom_document(chemin: str) -> str:
+    return os.path.basename(chemin).rsplit(".", 1)[0]
 
-    phrases = [p.strip() for p in re.split(r"(?<=[.!?])\s+", texte_brut) if p.strip()]
 
+def encoder(chemins: list[str]) -> dict:
+    """Tisse un ou plusieurs fichiers dans un seul registre."""
     reg = {}
-    def V(name):
-        if name not in reg:
-            reg[name] = Vector(name)
-        return reg[name]
+    def V(nom):
+        if nom not in reg:
+            reg[nom] = Noeud(nom)
+        return reg[nom]
 
-    nom_document = os.path.basename(chemin).rsplit(".", 1)[0]
-    doc = V(nom_document)
-    src = V(source)
-    premier_mot = None
-    position = 0
-
-    for phrase in phrases:
-        mots = decouper_mots(phrase)
+    for chemin in chemins:
+        with open(chemin, encoding="utf-8") as f:
+            texte = f.read()
+        doc = V(nom_document(chemin))
         prec = None
-        for mot in mots:
-            m = V(mot)
-            T = V(f"@{position}")  # préfixe d'un seul caractère --
-                                    # élimine la collision avec un mot
-                                    # qui serait littéralement un chiffre
-                                    # (ex: "7" comme mot ET position 7),
-                                    # tout en restant compact
-
-            if premier_mot is None:
-                m.links.append((doc, src, m))
-                m.seen.append(doc)
-                premier_mot = m
-
-            m.seen.append(T)  # toujours -- chaque mot vu à sa position exacte
-            if prec is not None:
-                prec.links.append((T, src, m))
-            prec = m
-            position += 1
-
+        for position, glyphe in enumerate(decouper(texte)):
+            g = V(glyphe)
+            # La position est nommée par son document : la position 12
+            # d'Alice n'est pas la position 12 du Code civil.
+            T = V(f"@{doc.name}:{position}")
+            if prec is None:
+                g.links.append([g, doc])        # genèse : exister ici
+            else:
+                prec.links.append([g, T, doc])  # [cible, où, dans quoi]
+            prec = g
     return reg
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage : python3 circe_encoder.py fichier.txt")
+    args = [a for a in sys.argv[1:] if a != "-o"]
+    if not args:
+        print("Usage : python3 circe_encoder.py fichier.txt [autre.txt ...] [-o sortie.vjson]")
         sys.exit(1)
 
-    chemin = sys.argv[1]
-    print(f"Lecture et tissage de {chemin}...")
-    reg = encoder_fichier(chemin)
-    print(f"{len(reg)} citoyens (mots uniques + positions + document) -- "
-          f"chaque mot compte sa position exacte, sans hiérarchie artificielle.")
+    if "-o" in sys.argv:
+        i = sys.argv.index("-o")
+        sortie = sys.argv[i + 1]
+        chemins = [a for a in sys.argv[1:i]]
+    else:
+        chemins = args
+        sortie = chemins[0].rsplit(".", 1)[0] + ".vjson"
 
-    sortie = chemin.rsplit(".", 1)[0] + ".vjson"
+    print(f"Tissage de {len(chemins)} document(s)...")
+    reg = encoder(chemins)
+    print(f"{len(reg)} nœuds au total.")
+
     with open(sortie, "w", encoding="utf-8") as f:
         f.write(registre_vers_json(reg))
     print(f"Écrit : {sortie}")

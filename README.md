@@ -2,15 +2,25 @@
 
 *Que chacun puisse interroger les livres, pas seulement les lire.*
 
+*Circé implémente le modèle **Nœud** — deux champs, onze lignes,
+[github.com/mrpandafr/noeud](https://github.com/mrpandafr/noeud).
+Anciennement publié sous le nom Vector : même modèle, même lignée,
+même DOI.*
+
 ## Le constat
 
 Un livre fermé garde son sens en otage. Il faut le lire en entier,
 deviner le bon mot pour le retrouver.
 
-Circé garde chaque glyphe d'une phrase, dans l'ordre exact — y
-compris l'espace lui-même. La phrase est l'unité réelle du document ;
-son contenu ne perd rien. Seul l'espacement entre deux phrases (la
-mise en forme, pas le sens) n'est pas garanti identique.
+Circé garde **chaque glyphe du document**, dans l'ordre exact — les
+espaces, les retours à la ligne, la ponctuation. Rien n'est découpé,
+donc rien ne se perd : la concaténation des nœuds reproduit le fichier
+au caractère près.
+
+C'est une simplification autant qu'un gain. Les versions précédentes
+segmentaient en phrases, ce qui mangeait les séparateurs et coupait
+`art. 7` en deux. Ne jamais couper règle le problème au lieu de le
+contourner — et supprime au passage toute dépendance à un segmenteur.
 
 ## Redécouvrir
 
@@ -30,14 +40,37 @@ Vérifié sur du texte, sur de la musique, sur un corpus légal de
 près de trois mille articles, sur un livre entier. Le même
 mécanisme, chaque fois.
 
-## VectorJSON, la preuve
+## NoeudJSON, la preuve
 
-Vector est une idée. VectorJSON est ce qui reste quand l'idée tient
+Nœud est une idée. NoeudJSON est ce qui reste quand l'idée tient
 sur un texte réel, moche, jamais nettoyé pour l'occasion.
 
 La preuve, ce n'est pas la théorie qui convainc — c'est le code
 testé sur un vrai corpus, avec ses erreurs montrées plutôt que
 cachées.
+
+## Un lien porte 1 à n nœuds
+
+Un lien est une liste vivante. Le **premier** nœud est la cible ;
+tout ce qui précède qualifie la relation. L'arité est libre, et
+plusieurs arités coexistent sans problème dans le même fichier.
+
+**Cible seule** — graphe de transitions pures. L'émergence est
+possible, la trace ne l'est pas : arrivé sur un mot fréquent, on ne
+sait plus laquelle de ses sorties suivre.
+**+ une position** — les occurrences deviennent distinctes, le texte
+redevient reconstructible. Minimum pour un document.
+**+ une source** — quand plusieurs voix coexistent (dialogue,
+annotations). Inutile quand une seule parle.
+**+ n'importe quoi d'autre** — langue, confiance, version,
+annotateur. Aucun changement à `vector.py` n'est nécessaire : un
+qualificateur est un citoyen, pas un champ typé.
+
+Retirer un nœud ne rend pas Nœud plus efficace. Ça change les
+questions auxquelles il peut répondre. C'est pour ça que le format
+sérialise un lien comme un tableau positionnel et non comme un objet
+à clés nommées : nommer `temps` et `source` inventerait des types
+que le modèle n'a pas.
 
 ## Boîte noire, boîte transparente
 
@@ -55,9 +88,10 @@ comme idéal.
 **Pourquoi** : le graphe seul trouve déjà plus qu'il n'y paraît — deux
 textes qui partagent un même mot sont réellement reliés, visible via
 `seen` sur ce mot, sans aucune citation explicite entre eux. Vérifié :
-"Alice" dans deux phrases distinctes, jamais citées l'une l'autre,
-mais bien connectées par le mot partagé. (Circé ne détecte plus les
-frontières de paragraphe — seule la phrase est une unité reconnue.)
+"Alice" à deux endroits distincts du texte, jamais cités l'un l'autre,
+mais bien connectés par le glyphe partagé. (Circé ne segmente plus du
+tout : la frontière de phrase est une décision de lecture, prise par
+l'observateur sur la ponctuation, jamais inscrite dans le stockage.)
 
 Ce qu'il rate, précisément : la ressemblance **sans mot commun** — un
 synonyme, une paraphrase, deux phrases sur la même idée dites
@@ -92,10 +126,43 @@ qui le concerne sans payer un traducteur.
 Pas un gain de temps. Un poids en moins — celui de devoir se
 souvenir où chercher.
 
+## Trois niveaux de lecture
+
+Circé ne jette personne dans un réseau abstrait. On entre par le
+lisible, on découvre les recoupements, on descend dans la structure
+seulement si on en a besoin.
+
+**1. Lire.** `/docs` liste les documents du corpus, leur taille, leur
+vocabulaire. `/extrait DOC` en donne les premiers mots, reconstruits
+depuis le graphe.
+
+**2. Recouper.** `/recoupe DOC` montre quels autres documents partagent
+du vocabulaire avec celui-ci, classés par poids. `/partage A B` détaille
+chaque mot commun **avec la phrase où il apparaît** — pas une affirmation
+de ressemblance, la preuve à côté.
+
+**Aucun filtre, aucun seuil.** Un mot pèse l'inverse de sa fréquence :
+l'espace et « le » pèsent presque rien, un terme rare pèse lourd, et le
+classement émerge tout seul. Rien n'est écarté — le bruit reste visible,
+en bas, à sa vraie valeur.
+
+C'est Zipf appliqué tel quel. Les versions précédentes filtraient par
+seuils (60 %, trois documents, cinq documents) ; chaque seuil décidait à
+la place de la fréquence, et le corpus suivant le prenait en défaut. Le
+sens émerge de la fréquence — on ne l'aide pas en écartant d'avance ce
+qu'on croit être du bruit.
+
+**3. Explorer.** `/texte`, `/voisins`, `/contexte` — le graphe complet :
+les liens d'un nœud, ses occurrences exactes, les documents où il vit,
+et la phrase autour de n'importe laquelle de ses apparitions.
+
+Chaque niveau reste utile seul. Personne n'est obligé de descendre.
+
 ## Comment
 
 ```
-python3 circe_encoder.py fichier.txt   # texte -> graphe VectorJSON
+python3 circe_encoder.py a.txt b.txt c.txt -o corpus.vjson   # un ou plusieurs
+python3 circe_encoder.py fichier.txt   # texte -> graphe NoeudJSON
 python3 validateur.py fichier.vjson    # vérifie le format
 python3 circe_explorer.py fichier.vjson  # traverse, interroge
 ```
@@ -109,6 +176,17 @@ Pour tous, vraiment. MIT, ouvert, sans laboratoire à remercier.
 Surtout pour ceux pris dans le pire — un dossier qu'on n'a pas
 choisi, une loi qu'on ne comprend pas, un corpus à affronter seul.
 
+## Développement
+
+- **Jean-Sébastien** — architecture et conception de Nœud/Circé
+- **FB** — développement et co-architecture
+- **Kage** — expérimentation, mémoire et documentation
+
+## Contributions techniques
+
+- **GPT (OpenAI)** — audit technique, conception et exécution de
+  tests adversariaux, revue de robustesse
+
 ---
 
-*K1SS Atelier 0 — 23 juillet 2026*
+*K1SS Atelier 0 — 24 juillet 2026*
